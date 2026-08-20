@@ -23,3 +23,10 @@ Para saber cuántos pulsos lee nuestro microcontrolador por cada giro completo d
 Pulsos Totales = 12 PPR x 90(Reducción) = 1080 pulsos por vuelta.
 
 Este valor teórico de 1080 fue validado empíricamente en laboratorio usando lectura manual, obteniendo un margen de error mecánico por backlash inferior al 0.4%.
+
+## B. Análisis Geométrico (La Rueda Mecanum)
+
+Para llevar los pulsos al mundo real, necesitamos la distancia física que recorre la rueda en un giro completo.
+
+ # <font color="red">**Diámetro Medido:**</font> 
+Inicialmente se midió un diámetro de 5.7 cm. Sin embargo, mediante pruebas de lazo cerrado (desplazamiento de 50 cm con sobretiro de 2.5 cm), se calibró el modelo deduciendo que el diámetro efectivo de rodadura del chasis ensamblado corresponde al estándar de 6.0 cm.
