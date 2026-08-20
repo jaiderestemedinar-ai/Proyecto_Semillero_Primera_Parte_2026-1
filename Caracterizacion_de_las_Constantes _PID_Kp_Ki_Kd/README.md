@@ -61,10 +61,27 @@ El Diagnóstico: Descubrimos que el acumulador Integral del PID seguía guardand
 
 La Solución en Código: Implementamos una "Amnesia Matemática". En la función del PID, agregamos una condición estricta:
 
-```C
+``` C
 if (setpoint == 0) {
     pid->integral = 0;      // Borra la memoria
     pid->error_previo = 0;  // Borra la derivada
     return 0;               // PWM = 0 inmediato (Corte de energía)
+}
+```
+
+
+Paso 3: El "Tranconazo" en Reversa (Parche para el BTS7960)
+
+El Síntoma Físico: Al intentar hacer la cinemática lateral, el carro empezó a zapatear violentamente.
+
+La Estrategia de Diagnóstico: Retrocedimos un paso. En lugar de ir de lado, programamos una prueba de Reversa Pura (Vy = -30). El carro dio tirones incontrolables.
+
+La Solución: Nos dimos cuenta de que el puente H BTS7960 no tiene un pin de dirección simple, sino pines separados LPWM y RPWM. Cuando el PID daba un valor negativo (ej. -10), encendíamos el pin digital a 5V (100% de PWM) y mandábamos el 10 al otro pin. El motor recibía 255 - 10 = 245 de potencia en lugar de 10. Lo arreglamos calculando el complemento a 255 en el enrutador de dirección:
+
+``` C
+if(pwm_m1 >= 0) { 
+    DIR_M1 = 0; CCPR1L = pwm_m1; 
+} else { 
+    DIR_M1 = 1; CCPR1L = 255 - (-pwm_m1); // Complemento matemático exacto
 }
 ```
