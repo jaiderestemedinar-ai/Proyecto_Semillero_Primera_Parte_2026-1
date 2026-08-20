@@ -41,3 +41,30 @@ La Ecuación: D = Kd x Error Actual - Error Previo
 El Proceso: Al tener un Kp fuerte y un Ki sumando fuerza, el motor corría el riesgo de pasarse de los 35 pulsos (Sobreimpulso u Overshoot). El Kd actúa como un amortiguador. Al detectar que el error se está reduciendo muy rápido, aplica un valor negativo al PWM para ir frenando el motor justo antes de llegar al Setpoint. Un Kd de 0.2 fue suficiente para suavizar la llegada sin volver el sistema "lento".
 
 El Filtro Pasabajo: En las últimas versiones, aplicamos un filtro (ALPHA_FILTRO_D = 0.35f) porque a velocidades bajas, un salto de 1 solo pulso en el encoder causaba picos ruidosos en la derivada que se traducían en micro-temblores en las ruedas.
+
+
+## Metodología Práctica: Sintonización y Solución de Problemas del PID
+
+Para obtener las constantes del PID y lograr que el chasis Mecanum se moviera de forma fluida, no usamos adivinanzas, sino una estrategia de aislamiento de variables y caracterización iterativa.Este fue nuestro proceso paso a paso:
+
+
+Paso 1: Aislamiento del Lazo (Prueba de Avance Recto)Antes de intentar cinemáticas complejas (como ir de lado), probamos el sistema en su forma más básica: un avance lineal puro.
+
+La Estrategia: Le dimos a los 4 motores un Setpoint fijo de 35 pulsos por ciclo de 50ms.
+
+El Ajuste: Iniciamos probando un Kp de 2.0. Observamos que el chasis, con todo el peso de las baterías de litio, lograba arrancar pero se quedaba unos pulsos por debajo del objetivo. Para corregir este error estacionario, inyectamos un Ki de 0.5, logrando que la telemetría marcara los 35 pulsos exactos. El Kd en 0.2 suavizó la llegada.
+
+
+Paso 2: El Problema del Frenado: Al ordenar un Setpoint = 0 (freno total), el robot empezaba a temblar en su lugar en lugar de quedarse quieto.
+
+El Diagnóstico: Descubrimos que el acumulador Integral del PID seguía guardando el error del pasado (Windup). Al frenar, la integral intentaba "descargar" esa memoria mandando picos de PWM.
+
+La Solución en Código: Implementamos una "Amnesia Matemática". En la función del PID, agregamos una condición estricta:
+
+```C
+if (setpoint == 0) {
+    pid->integral = 0;      // Borra la memoria
+    pid->error_previo = 0;  // Borra la derivada
+    return 0;               // PWM = 0 inmediato (Corte de energía)
+}
+```
