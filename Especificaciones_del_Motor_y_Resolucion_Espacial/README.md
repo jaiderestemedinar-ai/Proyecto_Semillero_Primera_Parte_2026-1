@@ -16,7 +16,7 @@ La placa de características del motor nos proporcionó tres variables fundament
 
 3. 110 RPM (a 12V): La velocidad máxima teórica del eje de salida sin carga.
 
-Cálculo de Resolución del Encoder (Pulsos por Vuelta):
+**Cálculo de Resolución del Encoder (Pulsos por Vuelta):**
 
 Para saber cuántos pulsos lee nuestro microcontrolador por cada giro completo de la llanta, multiplicamos la resolución base por la caja reductora:
 
@@ -45,7 +45,7 @@ Conociendo los pulsos por vuelta y los centímetros por vuelta, establecimos la 
 
 **Resolución lineal** = 1080/18.85 = **57.3 pulsos/cm**
 
-Implementación en el Software:
+**Implementación en el Software:**
 Gracias a este modelo, abstrajimos la complejidad matemática en el código. El sistema de navegación autónoma funciona multiplicando cualquier distancia solicitada por esta constante:
 
 ```
