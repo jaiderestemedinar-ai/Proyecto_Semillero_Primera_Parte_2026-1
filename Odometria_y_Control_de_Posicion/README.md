@@ -1,8 +1,8 @@
-## Odometría y Control de Posición: La Prueba de los 50 cm y Caracterización Manual
+# Odometría y Control de Posición: La Prueba de los 50 cm y Caracterización Manual
 
 Para lograr que el robot avanzara distancias exactas en el mundo real, tuvimos que construir un Lazo de Posición (Lazo Externo) que gobernara nuestro PID de velocidad (Lazo Interno). Esta implementación la dividimos en tres fases estratégicas:
 
-# A. Reestructuración de Variables: Velocidad vs. Posición Absoluta
+## A. Reestructuración de Variables: Velocidad vs. Posición Absoluta
 
 En las primeras fases, nuestros encoders contaban los pulsos en variables (p_m1, p_m2...) que se borraban a cero cada 50 milisegundos por medio de la interrupción del Timer0. Esto era útil para calcular la velocidad (pulsos por intervalo de tiempo), pero nos dejaba "ciegos" respecto a la distancia total recorrida.
 
