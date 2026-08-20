@@ -37,7 +37,7 @@ Corte de Potencia (12V): Desconectamos físicamente la batería LiPo. Esto desen
 ![toma de datos pulsos](prueba_pulsos.png)
 
 
-Ejecución: Al estar los motores libres de torque, pudimos hacer una marca en la llanta, imprimir la variable absoluta (pos_m1) en el Monitor Serial y girar la rueda exactamente una vuelta con la mano.
+**Ejecución:** Al estar los motores libres de torque, pudimos hacer una marca en la llanta, imprimir la variable absoluta (pos_m1) en el Monitor Serial y girar la rueda exactamente una vuelta con la mano.
 Resultado: El monitor serial arrojó una lectura de ~1076 pulsos. Esto validó empíricamente la hoja de datos del motor (que indicaba 1080 pulsos teóricos), atribuyendo el pequeñísimo error al backlash (juego mecánico) de la caja reductora.
 
 ## C. Algoritmo de Navegación: Frenado Proporcional y Prueba 
