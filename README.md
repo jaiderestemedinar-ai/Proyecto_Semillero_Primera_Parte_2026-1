@@ -2,6 +2,9 @@
 
 Este repositorio documenta el progreso, simulaciones de solidworks,código para el desarrollo de un vehículo omnidireccional integrado con un brazo robótico ,ademas de la comunicacion con diferentes elementos de desarrollo.
 
+![Proyecto semillero](principal2.jpg)
+
+
 ## 🎯 Meta del Proyecto
 
 Lograr la integración funcional y el control inalámbrico entre un chasis de tracción omnidireccional y un brazo robótico manipulador de 5 DOF. El proyecto se sustenta en una arquitectura de control distribuida y la implementación de un entorno de simulación virtual, garantizando un diseño mecánico optimizado y operaciones precisas.
