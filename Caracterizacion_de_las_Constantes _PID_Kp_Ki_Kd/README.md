@@ -1,4 +1,5 @@
-# Caracterización y Sintonización de las Constantes PID (Kp ,Ki, Kd)
+# Caracterización y Sintonización de las Constantes PID 
+# (Kp ,Ki, Kd)
 En la industria, hay dos formas de obtener las constantes de un controlador PID:
 
 ## Analítica: 
