@@ -24,7 +24,7 @@ Para garantizar que la comunicación sea exclusiva (evitando interferencias con 
 
 Se establecieron los siguientes parámetros mas importantes para emparejar el Transmisor (ESP8266) y el Receptor (PIC18F45K22):
 
-### Baud Rate (BD): 115200 bps (Seleccionado para minimizar errores de trama de hardware a costa de una velocidad máxima aceptable para telemetría JSON ligera).
+*** Baud Rate (BD):** 115200 bps (Seleccionado para minimizar errores de trama de hardware a costa de una velocidad máxima aceptable para telemetría JSON ligera).
 
 ### PAN ID (ID): [cualquiera acorde a las demas xbee's] 
 
