@@ -26,11 +26,11 @@ Se establecieron los siguientes parámetros mas importantes para emparejar el Tr
 
 **Baud Rate (BD):** 115200 bps (Seleccionado para minimizar errores de trama de hardware a costa de una velocidad máxima aceptable para telemetría JSON ligera).
 
-### PAN ID (ID): [cualquiera acorde a las demas xbee's] 
+**PAN ID (ID):** [cualquiera acorde a las demas xbee's] 
 
-### Destination Address (DH / DL) & My Address (MY): Direccionamiento cruzado para topología Punto a Punto. La dirección de destino de uno corresponde a la dirección local del otro.
+**Destination Address (DH / DL) & My Address (MY):** Direccionamiento cruzado para topología Punto a Punto. La dirección de destino de uno corresponde a la dirección local del otro.
 
-### Modo de Operación (AP): Modo Transparente (AT) (Sin tramas API, datos crudos).
+**Modo de Operación (AP):** Modo Transparente (AT) (Sin tramas API, datos crudos).
 
 ## 3. Acondicionamiento Físico e Interfaz de Niveles de Voltaje
 Los módulos XBee operan estrictamente a 3.3V, mientras que el microcontrolador PIC18F45K22 de la placa principal opera a 5V. Conectar los pines de datos directamente causaría daños al XBee.
