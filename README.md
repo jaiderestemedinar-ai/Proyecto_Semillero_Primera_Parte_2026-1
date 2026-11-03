@@ -1,8 +1,4 @@
 
-
-![Proyecto semillero](principal2.jpg)
-# Proyecto Semillero: Primera Parte — Jaider Esteban Medina Rubio
-
 Este repositorio documenta el progreso, las simulaciones de SolidWorks y el código para el desarrollo de un vehículo omnidireccional integrado con un brazo robótico, además de la comunicación con los distintos elementos del sistema.
 
 ![Proyecto semillero](principal2.jpg)
