@@ -1,56 +1,84 @@
 # Modelado Matemático: Especificaciones del Motor y Resolución Espacial
 
-Para traducir una orden de software (ej. "Avanza 50 cm") en movimientos físicos reales, construimos un modelo matemático vinculando las especificaciones electromecánicas del motor GM37-520 con la geometría de la llanta Mecanum.
+Para traducir una orden de software (ej. "avanza 50 cm") en movimientos físicos reales, es necesario vincular las especificaciones electromecánicas del motor GM37-520 con la geometría de la llanta Mecanum y la resolución real del encoder. Este documento detalla la caracterización teórica inicial, por qué se abandonó, y la caracterización empírica aplicada que finalmente se utilizó.
 
-A continuación, se detalla la caracterización teórica y aplicada:
+---
 
-## A. Análisis de la Transmisión Electromecánica (Motor GM37-520)
+## 1. Datos de partida (datasheet)
 
-La placa de características del motor nos proporcionó tres variables fundamentales que definen el rendimiento del chasis:
+| Parámetro | Valor |
+|---|---|
+| Relación de reducción | 1:90 |
+| Pulsos por revolución del encoder (eje del motor, antes de la reducción) | 12 PPR |
+| Velocidad nominal a 12V | 110 RPM (medida en el eje de salida, después de la reducción) |
 
-![Etiqueta motor GM37-520](Motor_Mecanum.jpg)
+**Pulsos por vuelta teóricos (eje de salida):** `12 PPR × 90 (reducción) = 1080 pulsos/vuelta`
 
-1. 12 PPR (Fase AB): El encoder magnético de cuadratura acoplado al eje interno del motor genera 12 pulsos eléctricos por cada revolución completa de dicho eje (antes de pasar por los engranajes).
+Este número teórico depende de que el encoder esté efectivamente ubicado antes de la reducción (en el eje del motor) y de que cada pulso del canal A se cuente una sola vez por flanco. Es un valor de referencia, **no la constante final utilizada** — ver la sección 2 para entender por qué.
 
-2. Relación de Reducción (1:90): La caja reductora metálica exige que el motor interno gire exactamente 90 veces para que el eje de salida (donde va la llanta) complete una sola vuelta.
+---
 
-3. 110 RPM (a 12V): La velocidad máxima teórica del eje de salida sin carga.
+## 2. Por qué se descartó el cálculo puramente teórico de la conversión pulso→RPM
 
-**Cálculo de Resolución del Encoder (Pulsos por Vuelta):**
+En una primera aproximación, se intentó calcular la constante de conversión de "período entre pulsos" a "RPM" a partir de la configuración de los registros del temporizador del PIC (prescaler de Timer1, frecuencia de reloj del sistema). Este método **se abandonó deliberadamente** tras cometer dos errores de cálculo consecutivos al interpretar manualmente los bits de configuración del temporizador (`T1CON`) sin verificarlos contra el datasheet con suficiente rigor — cada intento produjo una constante distinta y ninguna fue confiable sin medición real.
 
-Para saber cuántos pulsos lee nuestro microcontrolador por cada giro completo de la llanta, multiplicamos la resolución base por la caja reductora:
+**Decisión metodológica:** en lugar de confiar en una deducción teórica propensa a errores de interpretación de registros, se adoptó una **calibración completamente empírica**, descrita a continuación. Este es un ejemplo deliberado de buena práctica de ingeniería: cuando un cálculo teórico depende de múltiples supuestos no verificados, es preferible medir directamente.
 
-Pulsos Totales = 12 PPR x 90(Reducción) = 1080 pulsos por vuelta.
+---
 
-Este valor teórico de 1080 fue validado empíricamente en laboratorio usando lectura manual, obteniendo un margen de error mecánico por backlash inferior al 0.4%.
+## 3. Metodología de calibración empírica
 
-## B. Análisis Geométrico (La Rueda Mecanum)
+### 3.1 Procedimiento
 
-Para llevar los pulsos al mundo real, necesitamos la distancia física que recorre la rueda en un giro completo.
+1. Se aplicó al motor un duty cycle fijo y conocido, en lazo abierto (sin control de velocidad).
+2. Se contaron los pulsos acumulados del encoder durante una ventana de tiempo exacta, cronometrada externamente (10, 20 y 30 segundos, en pruebas independientes, para reducir el error relativo de medición).
+3. De forma simultánea, se marcó físicamente la rueda y se contaron las vueltas reales completadas en la misma ventana de tiempo (conteo manual, contrastado en las tres duraciones para minimizar el error de fracciones de vuelta mal contadas).
+4. La constante se obtiene de: `pulsos_por_vuelta = pulsos_contados / vueltas_contadas`
 
-**Diámetro Medido:** Inicialmente se midió un diámetro de 5.7 cm. Sin embargo, mediante pruebas de lazo cerrado (desplazamiento de 50 cm con sobretiro de 2.5 cm), se calibró el modelo deduciendo que el diámetro efectivo de rodadura del chasis ensamblado corresponde al estándar de 6.0 cm.
+### 3.2 Datos obtenidos (duty = 50%, ventana de 10 segundos)
 
-**Cálculo de la Circunferencia ($C$):** 
-Utilizando el diámetro calibrado, calculamos el perímetro de la llanta:
+| Rueda | Pulsos contados | Vueltas contadas | Pulsos/vuelta |
+|---|---|---|---|
+| M1 | 10890 | ≈9.95 | ≈1094 |
+| M2 | 11608 | ≈10.9 | ≈1065 |
+| M3 | 11139 | 10 | ≈1114 |
+| M4 | 10940 | 10 | ≈1094 |
 
-C = π x D
-C = 3.1416 x 6.0  cm = 18.85 cm
-(Esto indica que por cada revolución completa, el chasis se desplaza linealmente 18.85 cm).
+### 3.3 Resultado final
 
-## C. La Ecuación de Odometría (El "Número Mágico")
+**Promedio adoptado: 1090 pulsos/vuelta**, aplicado como constante única para las 4 ruedas. La dispersión observada entre ruedas (≈1065 a ≈1114) se atribuye principalmente a la imprecisión inherente al conteo manual de vueltas fraccionarias, no a una diferencia mecánica real entre encoders — por lo que no se justificaba usar una constante distinta por rueda para este parámetro (a diferencia de las curvas de velocidad, donde sí existen diferencias reales entre motores, ver `Caracterizacion_de_las_Constantes_PID_Kp_Ki_Kd/`).
 
-Conociendo los pulsos por vuelta y los centímetros por vuelta, establecimos la Resolución Lineal del robot, es decir, cuántos pulsos equivalen a 1 centímetro en el piso.
+Es notable que el valor empírico (1090) resulta muy cercano al valor teórico calculado en la sección 1 (1080) — una diferencia de apenas ~0.9%, lo que sirve como validación cruzada de que ambos números son razonables y consistentes entre sí, pese a que el método final adoptado fue el empírico.
 
-**Resolución lineal** = Pulsos Totales/C
+---
 
-**Resolución lineal** = 1080/18.85 = **57.3 pulsos/cm**
+## 4. Validación cruzada contra la especificación del fabricante
 
-**Implementación en el Software:**
-Gracias a este modelo, abstrajimos la complejidad matemática en el código. El sistema de navegación autónoma funciona multiplicando cualquier distancia solicitada por esta constante:
+Con la constante de 1090 pulsos/vuelta aplicada, se calculó la RPM real a distintos niveles de duty cycle:
 
-```
-float distancia_cm_objetivo = 50.0; 
-float pulsos_por_cm = 57.3; 
-int32_t meta_pulsos = (int32_t)(distancia_cm_objetivo * pulsos_por_cm);
-```
-Con este modelo, si solicitamos 50 cm, el algoritmo de control calcula dinámicamente un objetivo de 2865 pulsos, garantizando un posicionamiento milimétrico.
+| Duty (%) | M1 (RPM) | M2 (RPM) | M3 (RPM) | M4 (RPM) |
+|---|---|---|---|---|
+| 50 | 59.9 | 63.9 | 61.3 | 60.2 |
+| 70 | 83.8 | 88.0 | 86.2 | 86.1 |
+| 90 | 108.2 | 115.4 | 111.4 | 110.8 |
+
+A duty = 90% (cercano al máximo de operación), la velocidad medida (~108–115 RPM) es consistente con la especificación nominal del fabricante de **110 RPM a 12V**, confirmando que tanto la constante de conversión como el procedimiento de medición son válidos.
+
+---
+
+## 5. Encoder de cuadratura: resolución de dirección real
+
+A diferencia de un encoder de un solo canal (que solo permite contar pulsos, infiriendo la dirección del comando enviado), el encoder utilizado dispone de **2 canales (A/B)**, lo que permite:
+
+- Canal A: genera la interrupción de conteo (por cambio de estado).
+- Canal B: se lee en el instante del flanco de A para determinar el signo (sentido de giro real).
+
+Esto permitió, durante la puesta en marcha, **detectar por hardware** qué motores giraban en sentido contrario al comandado (M2 y M4, documentado en `Caracterizacion_de_las_Constantes_PID_Kp_Ki_Kd/`), en vez de depender de la observación visual para cada prueba.
+
+---
+
+## 6. Uso de esta constante en el resto del sistema
+
+El valor de 1090 pulsos/vuelta es la base de:
+- El cálculo de RPM en tiempo real dentro del lazo de control PID (`Caracterizacion_de_las_Constantes_PID_Kp_Ki_Kd/`).
+- La futura conversión de pulsos acumulados a distancia lineal recorrida, necesaria para la odometría (`Odometria_y_Control_de_Posicion/`), donde se calibrará además el factor pulsos→cm de forma independiente para desplazamiento lateral y frontal, dado que la geometría de rodadura de una rueda Mecanum no es idéntica en ambos ejes.
