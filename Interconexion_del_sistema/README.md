@@ -1,183 +1,103 @@
-# Caracterización, Control PID y Mantenimiento de Rumbo — Chasis Mecanum
+Interconexión del Sistema
+1. Visión general de la arquitectura
 
-## 1. Hardware del chasis
+El sistema está compuesto por dos redes de comunicación independientes y de naturaleza distinta, unidas por un puente de traducción:
 
-| Componente | Especificación |
-|---|---|
-| Motores | 4× GM37-520, 12V, reducción 1:90, encoder en cuadratura 12 PPR |
-| Driver | 4× BTS7960 (puente H), habilitados mediante un único pin `EN_GLOBAL` |
-| Encoders | Cuadratura (canal A por interrupción, canal B para el signo) |
-| Controlador | PIC18F45K22 @ 64 MHz (PLL activo) |
-| Batería | CNHL 3S 5200mAh 90C |
-| IMU | MPU9250 (I2C, solo eje Z del giroscopio utilizado) |
+[Interfaz Web: HTML/JS/Three.js]
+            │  WebSocket (WiFi)
+            ▼
+     [ESP8266 NodeMCU]  ← puente WiFi ↔ UART
+            │  UART (cableado)
+            ▼
+      [XBee "Maestro"]  ← red de Radiofrecuencia (RF)
+            │
+      ┌─────┴─────┐
+      ▼           ▼
+[XBee Esclavo A] [XBee Esclavo B]
+      │                 │
+   UART              UART
+      │                 │
+[PIC18F45K22]     [PIC18F45K22]
+ Chasis Mecanum     Brazo xArm1S
 
----
 
-## 2. Caracterización experimental del encoder
 
-### 2.1 Metodología
+ Red 1 — WiFi/WebSocket: conecta a la persona (navegador) con el ESP8266. Es bidireccional, orientada a mensajes, y es donde vive el gemelo digital (la telemetría que anima el modelo URDF en Three.js).
 
-Se optó por una calibración **empírica**, no teórica, para evitar errores de interpretación de los registros del temporizador del PIC. El procedimiento:
+Red 2 — XBee (RF, maestro-esclavo): conecta al ESP8266 con los dos microcontroladores PIC. Es la red “de campo”: sin ella, nada se mueve. Es intencionalmente simple — un XBee maestro retransmite por aire lo que recibe por UART del ESP8266, y cada XBee esclavo entrega por UART a su propio PIC exactamente lo que escucha del maestro.
 
-1. Se aplicó un duty cycle fijo y conocido a un motor.
-2. Se contaron los pulsos acumulados del encoder en una ventana de tiempo exacta (10, 20 y 30 segundos, cronometrados).
-3. Simultáneamente, se contaron las vueltas físicas reales de la rueda (marca de referencia + cronómetro, validado con múltiples duraciones para reducir el error relativo de conteo manual).
+El ESP8266 es el único punto donde las dos redes se tocan: traduce JSON/texto de WebSocket a bytes planos de UART, y viceversa con la telemetría.
 
-### 2.2 Resultado
+2. Por qué dos PIC en vez de uno
 
-Pulsos por vuelta obtenidos (promedio de las 4 ruedas): **≈ 1090 pulsos/vuelta**
+Se usó un microcontrolador dedicado por subsistema (chasis y brazo) en vez de centralizar todo en un solo PIC, por tres razones:
 
-Validación cruzada: a duty = 90% (cercano al máximo), la velocidad medida fue de ≈ 108–110 RPM, consistente con la especificación nominal del fabricante (110 RPM @ 12V), confirmando la validez de la constante.
+Carga de tiempo real independiente: el chasis corre un lazo de control PID a 20 Hz (cada 50 ms) por cada una de las 4 ruedas más el PID de rumbo con la IMU; el brazo gestiona el protocolo serial de los servos LewanSoul. Mezclar ambos en un solo lazo principal habría introducido jitter cruzado — el mismo problema de timing que ya se diagnosticó y corrigió dentro del propio chasis (ver Caracterizacion_de_las_Constantes_PID_Kp_Ki_Kd/) se habría multiplicado al compartir CPU con una tarea no relacionada.
+Aislamiento de fallos: un error de firmware o un bloqueo en el control del brazo no puede colgar el control del chasis (y viceversa). Son placas físicamente distintas, alimentadas por baterías distintas (3S 5200 mAh el chasis, 2S 8000 mAh el brazo).
+Comunicación exclusivamente por protocolo serial, nunca por PWM directo entre placas — ningún PIC controla una señal física del otro subsistema; toda la coordinación pasa por los bytes que viajan por XBee.
+3. La red XBee: topología maestro-esclavo
 
----
+Un módulo XBee configurado como Maestro recibe por UART lo que el ESP8266 le transmite y lo retransmite por RF. Dos módulos XBee configurados como Esclavos, uno junto a cada PIC, reciben esa transmisión y la entregan por su propia UART al microcontrolador correspondiente.
 
-## 3. Cinemática inversa Mecanum
+Punto pendiente de verificación (no resuelto todavía): para que el maestro pueda dirigirse de forma selectiva a un esclavo sin que el otro también reciba y reaccione al mismo mensaje, los dos esclavos deberían estar en canales RF y/o PAN ID distintos, o el mensaje debería llevar una dirección/encabezado que cada PIC filtre en firmware. Esta separación no ha sido confirmada en el proyecto hasta la fecha de este documento. Se deja registrado aquí como una verificación de hardware pendiente, no como un hecho ya comprobado — ver también la nota correspondiente en Especificaciones_Iniciales_de_Hardware.md.
 
-Con los ejes definidos como `Vx` (lateral, derecha positivo), `Vy` (longitudinal, adelante positivo) y `Wz` (rotación, horario positivo), la velocidad objetivo de cada rueda se obtiene de:
+Esto no es un detalle menor: es precisamente la razón detrás de la decisión documentada en la sección 5.
 
-```
-M1 (delantera izq.)  =  Vy + Vx + Wz
-M2 (delantera der.)  =  Vy − Vx − Wz
-M3 (trasera izq.)    =  Vy − Vx + Wz
-M4 (trasera der.)    =  Vy + Vx − Wz
-```
+4. El puente ESP8266: WiFi ↔ UART
 
-El signo del resultado define la dirección (adelante/atrás) de cada rueda; la magnitud es el setpoint de velocidad en RPM.
+El ESP8266 corre un servidor WebSocket. Cada mensaje de control que llega desde la interfaz web se retransmite tal cual (o con una traducción mínima de formato) por su UART hacia el XBee Maestro. En sentido inverso, la telemetría que cada PIC reporta por su XBee esclavo llega al maestro, de ahí al ESP8266 por UART, y el ESP8266 la empuja por WebSocket hacia el navegador, donde alimenta la animación del gemelo digital en tiempo real.
 
----
+El ESP8266 actúa como un bridge transparente de protocolo (WiFi↔serial), no como un controlador: no interpreta ni valida los comandos de movimiento, solo los transporta.
 
-## 4. Feedforward por rueda y por dirección
+5. Coexistencia de dos protocolos de comando para el chasis
 
-### 4.1 Justificación
+Esta es la sección más importante de este documento desde el punto de vista de ingeniería de software, porque refleja una decisión de diseño deliberada, no un descuido.
 
-Un barrido de duty cycle (30–90%) mostró que, aunque los 4 motores son nominalmente idénticos, existe una variación real de hasta ~8% en RPM entre ruedas a la misma duty — y una asimetría adicional entre la dirección de avance y la de reversa en algunos motores, atribuible a diferencias de resistencia interna entre ambas mitades del puente H. Esto se resolvió **no** ajustando el hardware, sino incorporando esa variación directamente al modelo de control: cada rueda, en cada dirección, tiene su propia recta de feedforward.
+5.1 El origen del problema
 
-### 4.2 Modelo
+La interfaz web original (primera etapa del proyecto) fue construida para un firmware de chasis mucho más simple, y define su Modo Manual con un protocolo de un solo carácter por botón:
 
-Se confirmó una relación lineal entre duty cycle y RPM en el rango de operación (30–90%), por lo que se ajustó una recta por mínimos cuadrados para cada rueda y dirección:
+Botón	Carácter enviado	Acción original
+Avanzar	F	Vy positivo
+Retroceder	B	Vy negativo
+Lateral izquierda	L	Vx negativo
+Lateral derecha	R	Vx positivo
+Rotar izquierda	1	Wz negativo
+Rotar derecha	2	Wz positivo
+Detener	S	Todo a cero
 
-```
-RPM = m · duty + c        =>        duty_necesario = (RPM_deseado − c) / m
-```
+El firmware de chasis evolucionó completamente (ver Firmware_PIC_Chasis/, Capas 0 a 4) hasta un protocolo de comandos con valor numérico explícito — Y<rpm>, X<rpm>, W<rpm>, más todo el set de diagnóstico y ajuste de ganancias (DI/DD/TI/TD, P/I/D, G/K/Q, J, C/Z/N). Este protocolo nuevo es necesario para el control fino (velocidad exacta en RPM) y para la caracterización/diagnóstico, pero no es el que usa el botón de Modo Manual de la interfaz web, que nunca fue reescrita para enviar ese formato.
 
-### 4.3 Coeficientes finales
+5.2 Decisión adoptada: mantener ambos protocolos activos a la vez
 
-| Rueda | m (adelante) | c (adelante) | m (reversa) | c (reversa) |
-|---|---|---|---|---|
-| M1 | 1.226 | −2.54 | 1.140 | −1.00 |
-| M2 | 1.208 | −1.12 | 1.220 | +2.05 |
-| M3 | 1.290 | −4.10 | 1.279 | −4.20 |
-| M4 | 1.209 | −1.61 | 1.284 | −3.50 |
+Se decidió no modificar la interfaz web y en su lugar hacer que el firmware del chasis (Capa 4) entienda simultáneamente:
 
-Este feedforward entrega al PID un punto de partida cercano al correcto, reduciendo el esfuerzo de corrección necesario y, con ello, el tiempo de asentamiento.
+El protocolo nuevo, numérico, para control fino, telemetría y diagnóstico.
+El protocolo viejo de un solo carácter, exclusivamente para el Modo Manual.
 
----
+Esto evita reescribir y volver a validar la interfaz web (que ya funciona y ya está integrada con el gemelo digital), y mantiene el Modo Manual como una vía de control simple e inmediata, independiente del protocolo más complejo usado por el resto del sistema.
 
-## 5. PID de velocidad por rueda
+5.3 Conflictos de letras detectados y resueltos
 
-### 5.1 Diseño
+Al tener dos protocolos activos sobre el mismo canal UART, aparecieron dos riesgos concretos que se resolvieron antes de habilitar la compatibilidad:
 
-Lazo cerrado de velocidad (RPM) por rueda, con salida = feedforward + corrección PID:
+(a) Colisión directa de letra — F. En el protocolo nuevo, F<n> fijaba la ganancia integral del PID de rumbo (Kih). En el protocolo viejo, F (sin número) significa “avanzar”. No pueden coexistir con el mismo significado. Solución: el comando de Kih se reasignó a la letra Q.
 
-```
-error = setpoint_RPM − RPM_medida
-salida_duty = duty_feedforward + (Kp·error + Ki·∫error·dt + Kd·d(error)/dt)
-```
+(b) Colisión potencial entre placas — H. El PIC del brazo usa H para comandar HOME. En el firmware del chasis, H1/H0 activaba o desactivaba el mantenimiento de rumbo. Dado que la separación de canal/PAN ID entre los dos XBee esclavos no está confirmada (sección 3), existe el riesgo de que un comando H dirigido al brazo también sea recibido por el PIC del chasis y altere el estado del hold de rumbo sin que el usuario lo pida. Solución, por seguridad independientemente de si los canales ya están separados: el comando de hold de rumbo del chasis se reasignó a la letra J.
 
-### 5.2 Anti-windup
+(c) Ambigüedad de dígitos — 1 y 2. Si 1 y 2 dispararan rotación de forma incondicional, se reintroduciría exactamente el mismo bug ya corregido en la Capa 0 del firmware (ver Caracterizacion_de_las_Constantes_PID_Kp_Ki_Kd/): un comando como Y120 quedaría interpretado a mitad de camino como “rotar” en cuanto el parser viera el primer 1. Solución: 1 y 2 solo se interpretan como comandos de rotación del Modo Manual cuando el parser no está a mitad de capturar el valor numérico de otro comando. Si ya hay una captura en curso, se tratan como dígitos normales, igual que cualquier otro número.
 
-El término integral solo se acumula si la salida no está saturada, o si el error la empuja a salir de la saturación — evita que el integrador "se cargue" de más durante arranques o paradas bruscas.
+5.4 Tabla final de comandos del chasis (post-reconciliación)
+Letra	Significado	Protocolo
+Y<rpm> / X<rpm> / W<rpm>	Vy / Vx / Wz con valor exacto	Nuevo
+DI/DD/TI/TD<rpm>	Rueda individual (diagnóstico)	Nuevo
+P/I/D<n>	Ganancias PID de rueda	Nuevo
+G/K/Q<n>	Ganancias PID de rumbo (antes F para Kih)	Nuevo
+J1/J0	Hold de rumbo on/off (antes H1/H0)	Nuevo
+C / Z / N	Calibrar / zero / invertir rumbo	Nuevo
+F / B / L / R	Avanzar / retroceder / lateral izq / lateral der (magnitud fija)	Viejo — Modo Manual
+1 / 2	Rotar antihorario / horario (magnitud fija, solo sin captura en curso)	Viejo — Modo Manual
+S	Detener todo	Compartido (sin cambios)
+6. Latencia y consideraciones de la ruta completa
 
-### 5.3 Ganancias finales
-
-Sintonizadas experimentalmente (método manual: P hasta el borde de oscilación, I para eliminar error permanente, D solo para amortiguar sobre-impulso):
-
-```
-Kp = 0.20     Ki = 0.40     Kd = 0.02
-```
-
-Compartidas entre las 4 ruedas — justificación: la variación entre motores ya es absorbida por el feedforward individualizado (sección 4), por lo que el PID solo corrige el error residual común a la dinámica del sistema (mismo modelo de motor, misma reducción, mismo tipo de encoder).
-
-### 5.4 Caso de depuración relevante: error de temporización
-
-Durante la integración del giroscopio, el bucle principal comenzó a realizar transacciones I2C y transmisiones UART más largas, lo que introdujo una variación real en la duración de cada ciclo de control. El cálculo de RPM asumía un período fijo de 50 ms, lo que producía una medición incorrecta cuando el ciclo real se alargaba — visible como una oscilación sincronizada y violenta en las 4 ruedas simultáneamente.
-
-**Corrección:** se reemplazó el período asumido por el tiempo **real** transcurrido, medido con un contador de ticks de hardware (base de tiempo de 10 ms), igual que ya se hacía para la integración del rumbo. Esto eliminó por completo la oscilación, y es consistente con el principio de no asumir temporización fija cuando el tiempo de ejecución del bucle puede variar.
-
----
-
-## 6. Diagnóstico mecánico: caso real de deriva en movimiento lateral
-
-Durante las pruebas de movimiento lateral puro (`Vx ≠ 0`, `Vy = 0`), el chasis presentaba una deriva sistemática hacia adelante o atrás pese a que las 4 ruedas seguían su setpoint de RPM con precisión (confirmado por telemetría).
-
-**Metodología de aislamiento del problema:**
-1. Se descartó el control (el error de RPM por rueda era mínimo y consistente).
-2. Se sospechó inicialmente de una asimetría de tracción por la distribución de peso del brazo robótico.
-3. Mediante inspección física directa (prueba de contacto con tira de papel bajo cada rueda), se identificó que una de las ruedas no apoyaba completamente en el piso.
-4. **Causa raíz:** una arandela de más en el ensamblaje de la placa superior (donde se ancla el brazo) generaba una tensión mecánica que levantaba ligeramente un lateral del chasis, reduciendo el contacto de esa rueda con el piso.
-
-Este hallazgo refuerza un principio metodológico aplicado durante todo el proyecto: **antes de ajustar ganancias de control, se descarta primero la causa mecánica**, verificando con pruebas físicas directas en lugar de iterar a ciegas sobre el software.
-
----
-
-## 7. Mantenimiento de rumbo con MPU9250
-
-### 7.1 Justificación
-
-Incluso con las 4 ruedas siguiendo su setpoint de RPM con precisión y sin fallas mecánicas, persiste una deriva de orientación mínima e inevitable (tolerancias de fabricación, micro-deslizamiento) que no es detectable por los encoders, ya que estos solo miden la rotación del eje del motor, no el desplazamiento real del chasis sobre el piso. Se incorporó el eje Z del giroscopio del MPU9250 para cerrar un lazo de control de orientación (yaw) en tiempo real.
-
-### 7.2 Comunicación I2C
-
-Driver I2C implementado directamente sobre el módulo MSSP1 del PIC18F45K22 (maestro, 100 kHz), con control de timeout en cada espera de bus para evitar bloqueos indefinidos ante un fallo de comunicación.
-
-### 7.3 Calibración del sesgo (bias)
-
-El giroscopio reporta un offset (bias) distinto de cero incluso en reposo. Se promedian 300 muestras con el sensor quieto; si la dispersión de esas muestras supera un umbral (~3°/s pico a pico), se descarta la calibración y se reintenta, para evitar calibrar con el sensor en movimiento.
-
-### 7.4 Validación del sensor
-
-| Prueba | Resultado |
-|---|---|
-| Deriva en reposo (26 s) | < 0.2° |
-| Rotación controlada de 90° | +90.0° medido |
-| Rotación controlada de 360° | +357.6° medido (diferencia atribuible a imprecisión de la rotación manual, no al sensor) |
-
-### 7.5 PID de corrección de rumbo
-
-Lazo de control completo (P + I + D) sobre el error de orientación, cuya salida se suma como corrección adicional al término `Wz` de la cinemática:
-
-```
-error_rumbo = rumbo_referencia − rumbo_actual
-corrección = Kh·error + Kih·∫error·dt − Khd·(velocidad_angular_medida)
-Wz_efectivo = Wz_comandado + corrección
-```
-
-- **Derivativo implementado sobre la tasa medida directamente** (no derivando el error), evitando amplificar ruido de muestra a muestra.
-- **Anti-windup** con el mismo criterio que el PID de las ruedas (no acumula integral si la salida está saturada en la dirección del error).
-- **Límite de seguridad:** si el error de rumbo supera 30°, el sistema desactiva automáticamente la corrección (posible fallo de signo o evento anómalo) en vez de intentar corregir un error fuera de rango esperado.
-- El lazo solo actúa durante traslación pura (sin rotación comandada) y por encima de una velocidad mínima, para no interferir con giros intencionales.
-
-### 7.6 Ganancias finales
-
-```
-Kh  = 0.80   (P)
-Ki_h = 0.03  (I)
-Khd = 0.05   (D)
-```
-
-### 7.7 Resultados de validación en campo
-
-- **Prueba de línea recta/lateral con referencia visual:** desviación lateral prácticamente imperceptible a simple vista (solo apreciable mirando fijamente desde arriba con una referencia de línea fija).
-- **Respuesta a perturbación manual:** ante una perturbación externa aplicada a mitad de movimiento, el sistema detecta el error de rumbo introducido y lo corrige de forma autónoma, retornando al rumbo de referencia sin intervención adicional.
-- **Comportamiento del término integral:** transitorio único con sobre-impulso pequeño, seguido de asentamiento estable cercano a 0° — sin oscilación sostenida, indicando una sintonización apropiada para la dinámica del sistema.
-
----
-
-## 8. Conclusiones de esta etapa
-
-El sistema de tracción Mecanum logra:
-1. Seguimiento preciso de velocidad individual por rueda (feedforward + PID con anti-windup).
-2. Ejecución correcta de la cinemática completa (avance, lateral, diagonal, rotación).
-3. Corrección activa de deriva de orientación mediante realimentación inercial, validada cuantitativamente (no solo observación cualitativa).
-
-Esto constituye la base de control de bajo nivel sobre la cual se implementará la odometría y el control de posición (sección pendiente: `Odometria_y_Control_de_Posicion/`).
+Un comando originado en un clic del navegador recorre: WebSocket → ESP8266 → UART → XBee Maestro → aire (RF) → XBee Esclavo → UART → PIC. Cada salto agrega una latencia pequeña pero no nula; no se ha medido formalmente el round-trip completo en este proyecto — se deja anotado como una métrica pendiente de caracterizar si se documenta más adelante.
