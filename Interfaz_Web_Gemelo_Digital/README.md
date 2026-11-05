@@ -1,5 +1,7 @@
 #  Interfaz Web y Gemelo Digital (Servidor ESP8266)
 
+![interfaz](Interfaz_imagen.png)
+
 Este documento describe la arquitectura de software de alto nivel del Proyecto Semillero. Detalla cómo se diseñó una interfaz gráfica HMI (Human-Machine Interface) capaz de renderizar modelos 3D y enviar comandos en tiempo real, utilizando un módulo ESP8266 como servidor local.
 
 El protocolo exacto de los comandos que esta interfaz envía (Modo Manual F/B/L/R/1/2/S hacia el chasis, más el protocolo del brazo) y cómo conviven con el resto del sistema está documentado en Interconexion_del_Sistema/. Este documento se enfoca en cómo se construyó la interfaz y el servidor, no en el protocolo de comandos en sí.
@@ -65,6 +67,8 @@ btn.addEventListener('pointerleave', onEnd);
 
 ## 3. El Gemelo Digital (URDF + Three.js)
 
+![Descripción de la imagen](urdf_en_la_interfaz.png)
+
 La funcionalidad más avanzada de la interfaz es la representación virtual del chasis sincronizada en tiempo real, lograda importando una librería gráfica 3D y un parseador de modelos robóticos.
 
 ### 3.1 Renderizado del URDF
@@ -127,6 +131,8 @@ Cambiar la línea loader.load('urdf2.urdf', ...) al nuevo nombre de archivo.
 
 ## 4. Visualización Sensorial (Radar en Canvas)
 
+![Descripción de la imagen](deteccion_de_objeto.png)
+
 Se integró un lienzo HTML5 (<canvas>) superpuesto a la vista 3D para renderizar el radar ultrasónico. La función drawRadar() procesa los paquetes JSON (ej. {"a":40,"d":25}), convirtiendo coordenadas polares (ángulo y distancia) a coordenadas cartesianas mediante trigonometría (Math.cos/Math.sin), dibujando la posición de obstáculos en tiempo real y cambiando su color a rojo si infringen el umbral de seguridad de 7 cm.
 
 **Anexo** — Despliegue local y análisis del motor gráfico
@@ -157,6 +163,4 @@ Y = Cy − R · sin(180° − θ)
 
 donde Cx, Cy son el origen del radar en el Canvas, R es la distancia escalada (50 cm reales del HC-SR04 = 100% de la altura visual), y θ es el ángulo del servo convertido a radianes.
 
-Umbral crítico: si la distancia almacenada es ≤ 7 cm, el punto cambia de verde neón (
-#00ff00) a rojo alerta (
-#ff0000) — trasladando a la interfaz visual la misma lógica de exclusión de seguridad que existe en el hardware físico del chasis.
+Umbral crítico: si la distancia almacenada es ≤ 7 cm, el punto cambia de verde neón a rojo alerta— trasladando a la interfaz visual la misma lógica de exclusión de seguridad que existe en el hardware físico del chasis.
