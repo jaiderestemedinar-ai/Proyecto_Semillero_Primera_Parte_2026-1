@@ -1,1 +1,1 @@
-"aqui ira el paso a paso de la creacion de el URDF de el carro y el del brazo"
+# en esta sección estan las configuraciones precisas que se aplicaron para tener el modelo URDF

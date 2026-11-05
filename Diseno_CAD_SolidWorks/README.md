@@ -1,1 +1,1 @@
-"En esta sección se documentará próximamente el diseño y ensamblaje 3D del chasis holonómico y del brazo robótico desarrollados en SolidWorks."
+# En esta sección estará documentado el proceso de la creación de los modelos en solidworks
