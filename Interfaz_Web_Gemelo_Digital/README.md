@@ -4,7 +4,7 @@ Este documento describe la arquitectura de software de alto nivel del Proyecto S
 
 El protocolo exacto de los comandos que esta interfaz envía (Modo Manual F/B/L/R/1/2/S hacia el chasis, más el protocolo del brazo) y cómo conviven con el resto del sistema está documentado en Interconexion_del_Sistema/. Este documento se enfoca en cómo se construyó la interfaz y el servidor, no en el protocolo de comandos en sí.
 
-1. Arquitectura de Red (el servidor ESP8266)
+## 1. Arquitectura de Red (el servidor ESP8266)
 
 Para que el proyecto fuera 100% autónomo y no dependiera de redes de internet externas, el microcontrolador ESP8266 NodeMCU fue configurado como Access Point (Punto de Acceso SoftAP).
 
@@ -16,7 +16,7 @@ Para asegurar que los comandos lleguen intactos al PIC del chasis sin saturar la
 
 
 
-
+```c
 // Fragmento del filtro en ESP8266
 if (c != ultimoComando) {
     Serial.write(c);           // Envía la orden nueva
@@ -28,6 +28,7 @@ else if (contadorRafa < 5) {
     contadorRafa++;
 }
 // Las letras subsecuentes iguales se descartan para evitar saturación UART
+```
 
 
 
