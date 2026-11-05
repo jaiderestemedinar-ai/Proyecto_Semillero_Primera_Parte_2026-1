@@ -10,7 +10,7 @@ Para que el proyecto fuera 100% autónomo y no dependiera de redes de internet e
 
 El ESP8266 crea su propia red Wi-Fi llamada Robot_Mecanum. Al conectarse a esta red, el usuario interactúa con la página web almacenada y servida a través del protocolo WebSocket (puerto 81).
 
-1.1 Filtro anti-ráfaga (firmware del ESP8266)
+### 1.1 Filtro anti-ráfaga (firmware del ESP8266)
 
 Para asegurar que los comandos lleguen intactos al PIC del chasis sin saturar la red (colisión de paquetes), se implementó un filtro de “ráfagas” en el ESP8266:
 
@@ -37,16 +37,16 @@ La lógica: la primera vez que llega una letra nueva, se reenvía de inmediato. 
 
 En sentido inverso, el ESP8266 reenvía la telemetría recibida por UART del PIC hacia la interfaz web mediante broadcastTXT().
 
-2. La Interfaz Web (HMI)
+## 2. La Interfaz Web (HMI)
 
 El archivo index.html es una aplicación de una sola página (SPA) que consolida los controles físicos y la visualización virtual. Su diseño se inspira en interfaces de control industrial (p. ej. Epson RC+, TIA Portal), vistas en las materias de Automatización Industrial y Robótica Industrial.
 
-2.1 Control tipo “hombre muerto” (Pointer Events)
+### 2.1 Control tipo “hombre muerto” (Pointer Events)
 
 Para garantizar una experiencia de teleoperación segura — el robot solo se mueve mientras el botón está físicamente activado — se descartó el uso de los eventos tradicionales mousedown/touchstart. En su lugar se usó la API Pointer Events, que unifica clics de ratón y toques de pantalla táctil capturando el “puntero”: si el dedo resbala fuera del botón, el sistema envía de inmediato una ráfaga de frenado.
 
 
-
+```js
 // Captura de eventos para máxima fiabilidad
 const onEnd = (e) => {
     e.preventDefault();
@@ -59,20 +59,20 @@ const onEnd = (e) => {
 btn.addEventListener('pointerup', onEnd);
 btn.addEventListener('pointercancel', onEnd);
 btn.addEventListener('pointerleave', onEnd);
+```
 
 
 
-
-3. El Gemelo Digital (URDF + Three.js)
+## 3. El Gemelo Digital (URDF + Three.js)
 
 La funcionalidad más avanzada de la interfaz es la representación virtual del chasis sincronizada en tiempo real, lograda importando una librería gráfica 3D y un parseador de modelos robóticos.
 
-3.1 Renderizado del URDF
+### 3.1 Renderizado del URDF
 
 Se importó Three.js (motor 3D sobre WebGL) junto con urdf-loader. El archivo urdf2.urdf (Unified Robot Description Format) contiene la cinemática, los pesos y las mallas visuales de los enlaces (chasis, brazo, rodillos), diseñadas originalmente en SolidWorks y exportadas con el plugin URDF Exporter (ver Diseno_CAD_SolidWorks/ y Exportacion_De_URDF/).
 
 
-
+```js
 // Carga del modelo en la escena de Three.js
 const loader = new URDFLoader();
 loader.load('carrosemillero2.urdf', result => {
@@ -80,18 +80,18 @@ loader.load('carrosemillero2.urdf', result => {
     scene.add(robot);
     robot.rotation.x = -Math.PI / 2;   // Ajuste de ejes Z-up a Y-up
 });
+```
 
 
 
 
-
-3.2 Sincronización físico-virtual
+### 3.2 Sincronización físico-virtual
 
 Cuando el usuario acciona un control, el PIC del chasis envía un JSON al ESP8266 confirmando que las llantas están girando (ej. {"v":0.1}). La función animate() de Three.js intercepta ese valor y lo aplica a las articulaciones (joints) definidas en el URDF, haciendo que el modelo 3D gire sincronizado con el chasis físico:
 
 
 
-
+```js
 // Bucle maestro de renderizado
 function animate() {
     requestAnimationFrame(animate);
@@ -108,14 +108,14 @@ function animate() {
         renderer.render(scene, camera);
     }
 }
+```
 
 
 
 
 
 
-
-3.3 Escalabilidad: cambiar el URDF a futuro
+### 3.3 Escalabilidad: cambiar el URDF a futuro
 
 El sistema es modular — si se rediseña el chasis o se cambia la pinza del brazo, no es necesario reescribir la página web:
 
@@ -123,12 +123,14 @@ Exportar el nuevo diseño desde SolidWorks con el plugin URDF Exporter.
 Guardar el nuevo archivo como nuevo_modelo.urdf en la raíz del servidor.
 Cambiar la línea loader.load('urdf2.urdf', ...) al nuevo nombre de archivo.
 (Opcional) Si los nombres de los motores/articulaciones cambiaron en SolidWorks, actualizar el diccionario const joints en la función de animación.
-4. Visualización Sensorial (Radar en Canvas)
+
+
+## 4. Visualización Sensorial (Radar en Canvas)
 
 Se integró un lienzo HTML5 (<canvas>) superpuesto a la vista 3D para renderizar el radar ultrasónico. La función drawRadar() procesa los paquetes JSON (ej. {"a":40,"d":25}), convirtiendo coordenadas polares (ángulo y distancia) a coordenadas cartesianas mediante trigonometría (Math.cos/Math.sin), dibujando la posición de obstáculos en tiempo real y cambiando su color a rojo si infringen el umbral de seguridad de 7 cm.
 
-Anexo — Despliegue local y análisis del motor gráfico
-A.1 El problema de CORS y el servidor local
+**Anexo** — Despliegue local y análisis del motor gráfico
+### A.1 El problema de CORS y el servidor local
 
 Abrir index.html con doble clic lo carga bajo el protocolo file:///, lo que impide que el Gemelo Digital (el URDF) se cargue — los navegadores modernos aplican CORS (Cross-Origin Resource Sharing), que prohíbe que urdf-loader/Three.js lean archivos locales del disco por seguridad.
 
@@ -136,14 +138,13 @@ Solución: levantar un servidor local de desarrollo:
 
 
 
-
+```python 
 python -m http.server 8000
-
-
+```
 
 Al acceder a http://localhost:8000, la petición viaja por HTTP estándar y el navegador confía en ese origen, permitiendo cargar urdf2.urdf y sus texturas sin bloqueos.
 
-A.2 Matemática del radar ultrasónico
+### A.2 Matemática del radar ultrasónico
 
 El radar no es una animación pregrabada: es una representación calculada en tiempo real a partir de la telemetría del sensor.
 
