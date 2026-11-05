@@ -18,6 +18,8 @@ Este documento presenta el inventario completo de componentes electromecánicos 
 
 **Validación realizada:** a duty cycle = 90% se midió experimentalmente ~108 RPM, consistente con la especificación nominal del fabricante (ver `Especificaciones_del_Motor_y_Resolucion_Espacial/` para la metodología completa).
 
+![motores etiqueta](Motor_Mecanum.jpg)
+
 ### 1.2 Encoders — Especificaciones
 
 Encoder de cuadratura de 2 canales (A/B), lo que permite determinar tanto la velocidad como el **sentido real de giro** por hardware, en vez de inferirlo del comando enviado. Ver la deducción de la constante de pulsos por vuelta en la carpeta dedicada.
